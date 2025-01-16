@@ -104,7 +104,7 @@ pub fn render_checkerboard_background(
 
             let color = if (row + col) % 2 == 0 { color1 } else { color2 };
 
-            render_filled_rect_from_state(stream_handle, checker_rect, color, state.clone(), false);
+            render_filled_rect_from_state(stream_handle, checker_rect, color, *state, false);
         }
     }
 }
