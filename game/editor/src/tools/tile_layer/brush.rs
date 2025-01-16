@@ -46,7 +46,7 @@ use crate::{
         upload_design_tile_layer_buffer, upload_physics_layer_buffer,
     },
     tools::utils::{
-        render_checkerboard_background, render_filled_rect, render_filled_rect_from_state, render_rect, render_rect_from_state
+        render_checkerboard_background, render_filled_rect, render_rect, render_rect_from_state,
     },
     utils::{ui_pos_to_world_pos, UiCanvasSize},
 };
