@@ -46,7 +46,7 @@ use crate::{
         upload_design_tile_layer_buffer, upload_physics_layer_buffer,
     },
     tools::utils::{
-        render_filled_rect, render_filled_rect_from_state, render_rect, render_rect_from_state,
+        render_checkerboard_background, render_filled_rect, render_filled_rect_from_state, render_rect, render_rect_from_state
     },
     utils::{ui_pos_to_world_pos, UiCanvasSize},
 };
@@ -1566,13 +1566,7 @@ impl TileBrush {
                 canvas_handle.canvas_width(),
                 canvas_handle.canvas_height(),
             );
-            render_filled_rect_from_state(
-                stream_handle,
-                render_rect,
-                ubvec4::new(0, 0, 0, 255),
-                state,
-                false,
-            );
+            render_checkerboard_background(stream_handle, render_rect, &state);
 
             state.map_canvas(
                 tl_x,
