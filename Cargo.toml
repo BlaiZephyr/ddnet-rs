@@ -215,8 +215,8 @@ stats_alloc = { version = "0.1.10", optional = true }
 
 # Better patches are always welcome
 #[target.'cfg(target_os = "windows")'.patch.crates-io]
-# [patch.crates-io]
-# ffmpeg-sys-next = { git = "https://github.com/Jupeyy/rust-ffmpeg-sys.git", branch = "pr_mingw_workaround" }
+[patch.crates-io]
+ffmpeg-sys-next = { git = "https://github.com/Jupeyy/rust-ffmpeg-sys.git", branch = "pr_mingw_workaround" }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.15.0"
