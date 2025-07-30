@@ -33,27 +33,35 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        shell: ${{ matrix.os == 'windows-latest' && 'msys2 {0}' || 'bash {0}' }}
+        shell: ${{ matrix.os == 'windows-latest' && 'powershell' || 'bash {0}' }}
     steps:
-    - name: Prepare Windows (msys2)
-      uses: msys2/setup-msys2@v2
+    - name: Setup MSVC (Windows)
       if: contains(matrix.os, 'windows')
-      with:
-        msystem: MINGW64
-  
-    - name: Configure Windows Path for msys2
-      shell: powershell {0}
-      if: contains(matrix.os, 'windows')
-      run: |
-        $env:PATH = "${{ steps.msys2.outputs.msys2-location }}/usr/bin;" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-        [System.Environment]::SetEnvironmentVariable("Path", $env:PATH, "User")
+      uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Configure rustup for msys2
+    - name: Install Rust (Windows)
       if: contains(matrix.os, 'windows')
       run: |
-        export PATH="/c/users/$(whoami)/.cargo/bin:$PATH"
-        echo -e "export PATH=\"/c/users/$(whoami)/.cargo/bin:\$PATH\"\n" >> ~/.bash_profile
-        echo -e "export MINGW_ARCH=mingw64\n" >> ~/.bash_profile
+        Invoke-WebRequest -Uri "https://win.rustup.rs/" -OutFile "rustup-init.exe"
+        .\rustup-init.exe -y --default-toolchain stable --default-host x86_64-pc-windows-msvc
+        $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+        [Environment]::SetEnvironmentVariable("PATH", $env:PATH, "User")
+
+    - name: Install dependencies (Windows)
+      if: contains(matrix.os, 'windows')
+      # uses chocolatey to install ffmpeg, nasm, and pkg-config
+      run: |
+        if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        }
+        choco install -y ffmpeg nasm pkgconfiglite
+        
+        $env:PATH = "C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin;$env:PATH"
+        $env:PATH = "C:\ProgramData\chocolatey\lib\nasm\tools;$env:PATH"
+        $env:PATH = "C:\ProgramData\chocolatey\lib\pkgconfiglite\tools\bin;$env:PATH"
+        [Environment]::SetEnvironmentVariable("PATH", $env:PATH, "User")
 
     - uses: actions/checkout@v4
       with:
@@ -80,47 +88,16 @@ jobs:
         # for building molten vk
         brew install python-setuptools || true
 
-    - name: Prepare msys dependencies
+    - name: Prepare msvc dependencies
       if: contains(matrix.os, 'windows')
       run: |
-        # important detail: mingw-w64-x86_64-libx264 is installed for the package config files!
-        pacman --noconfirm -S git make mingw-w64-x86_64-libx264 mingw-w64-x86_64-toolchain mingw-w64-x86_64-clang mingw-w64-x86_64-gcc mingw-w64-x86_64-nasm mingw-w64-x86_64-opus
-        # self compile for now
-        # https://github.com/msys2/MINGW-packages/issues/8824
-        git clone --depth=1 https://github.com/mirror/x264 /c/x264
-
-    - name: Setup cache for x264 (Windows)
-      if: contains(matrix.os, 'windows')
-      uses: actions/cache@v4
-      id: x264-cache-compiled
-      with:
-        path: C:\build-x264
-        key: ${{ runner.os }}-buildx264-${{ hashFiles('/c/x264') }}
-
-    - name: Compile x264 (Windows)
-      if: contains(matrix.os, 'windows') && steps.x264-cache-compiled.outputs.cache-hit != 'true'
-      run: |
-        (
-          mkdir /c/build-x264
-          cd /c/build-x264
-          /c/x264/configure --enable-static
-          make -j$(nproc)
-        )
-
-    - name: Prepare msys
-      if: contains(matrix.os, 'windows')
-      run: |
-        rm /mingw64/lib/libx264.dll.a
-        cp /c/build-x264/libx264.a /mingw64/lib/libx264.a
-        rustup target add x86_64-pc-windows-gnu
-        rustup update stable
-        rustup set default-host x86_64-pc-windows-gnu
-        rustup default stable-x86_64-pc-windows-gnu
-
+        $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+        rustup component add clippy
+        rustup show
+ 
     - uses: Swatinem/rust-cache@v2
 
     - name: Build debug
-      # disable windows for now, since it's the slowest build
       if: contains(matrix.os, 'windows') == false
       run: cargo build --verbose --features ${{ matrix.features-debug }}
 
