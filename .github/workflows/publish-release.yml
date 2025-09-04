@@ -12,12 +12,19 @@ permissions:
 jobs:
   release:
     name: Publish Test Tagged Release
-    # only run if Build succeeded, repo is not a fork, and the ref is a test tag
-    if: ${{ github.event.workflow_run.conclusion == 'success' &&
-            startsWith(github.event.workflow_run.head_branch, 'test-v') &&
-            !github.event.workflow_run.repository.fork }}
+    # Build erfolgreich + Event ist push + Tag beginnt mit test-v
+    if: ${{ github.event.workflow_run.conclusion == 'success'
+            && github.event.workflow_run.event == 'push'
+            && startsWith((github.event.workflow_run.head_branch || ''), 'test-v') }}
     runs-on: ubuntu-latest
     steps:
+    - name: Debug workflow_run context (optional)
+      run: |
+        echo "event            = ${{ github.event.workflow_run.event }}"
+        echo "head_branch      = ${{ github.event.workflow_run.head_branch }}"
+        echo "head_sha         = ${{ github.event.workflow_run.head_sha }}"
+        echo "repo.fork        = ${{ github.event.workflow_run.repository.fork }}"
+
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
@@ -33,11 +40,7 @@ jobs:
         shopt -s nullglob
         for d in ddnet-rs-*; do
           if [ -d "$d" ]; then
-            echo "Zipping contents of $d -> release-artifacts/$d.zip"
-            (
-              cd "$d"
-              zip -qr "../release-artifacts/$d.zip" *
-            )
+            ( cd "$d" && zip -qr "../release-artifacts/$d.zip" * )
           fi
         done
 
@@ -56,7 +59,7 @@ jobs:
     - name: Create GitHub Test Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.event.workflow_run.head_branch }}
+        tag_name: ${{ github.event.workflow_run.head_branch }}                 # <- Tag-Name
         target_commitish: ${{ github.event.workflow_run.head_sha }}
         name: Test Release ${{ github.event.workflow_run.head_branch }}
         body: |
