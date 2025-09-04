@@ -1,22 +1,27 @@
-name: Publish Release
+name: Publish Release (Test)
 
 on:
-  push:
-    tags:
-      - 'v*'   #works with any style, i.g v1.0.0 v1.2.3 is what we should be going for.
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   release:
+    name: Publish Test Tagged Release
+    # only run if Build succeeded, repo is not a fork, and the ref is a test tag
+    if: ${{ github.event.workflow_run.conclusion == 'success' &&
+            startsWith(github.event.workflow_run.head_branch, 'test-v') &&
+            !github.event.workflow_run.repository.fork }}
     runs-on: ubuntu-latest
     steps:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        # grab all
-        run-id: ${{ github.run_id }}
+        run-id: ${{ github.event.workflow_run.id }}
         pattern: ddnet-rs-*
         merge-multiple: false
         github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -42,20 +47,24 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y b3sum
         cd release-artifacts
-        echo "${{ github.sha }}" > blake3_checksum.txt
+        echo "${{ github.event.workflow_run.head_sha }}" > blake3_checksum.txt
         for f in *.zip; do
           hash=$(b3sum "$f" | awk '{print $1}')
           echo "$f $hash" >> blake3_checksum.txt
         done
 
-    - name: Create GitHub Release
+    - name: Create GitHub Test Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.ref_name }}
-        name: Release ${{ github.ref_name }}
-        body_path: CHANGELOG.md
+        tag_name: ${{ github.event.workflow_run.head_branch }}
+        target_commitish: ${{ github.event.workflow_run.head_sha }}
+        name: Test Release ${{ github.event.workflow_run.head_branch }}
+        body: |
+          Automated test release from fork.
+          Commit: ${{ github.event.workflow_run.head_sha }}
         draft: false
-        prerelease: false
+        prerelease: true
+        make_latest: false
         files: |
           release-artifacts/*.zip
           release-artifacts/blake3_checksum.txt
