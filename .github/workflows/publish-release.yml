@@ -1,0 +1,63 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'   #works with any style, i.g v1.0.0 v1.2.3 is what we should be going for.
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        # grab all
+        run-id: ${{ github.run_id }}
+        pattern: ddnet-rs-*
+        merge-multiple: false
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Re-zip each artifact folder with original name
+      run: |
+        set -euo pipefail
+        mkdir -p release-artifacts
+        shopt -s nullglob
+        for d in ddnet-rs-*; do
+          if [ -d "$d" ]; then
+            echo "Zipping contents of $d -> release-artifacts/$d.zip"
+            (
+              cd "$d"
+              zip -qr "../release-artifacts/$d.zip" *
+            )
+          fi
+        done
+
+    - name: Generate BLAKE3 checksums
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo apt-get install -y b3sum
+        cd release-artifacts
+        echo "${{ github.sha }}" > blake3_checksum.txt
+        for f in *.zip; do
+          hash=$(b3sum "$f" | awk '{print $1}')
+          echo "$f $hash" >> blake3_checksum.txt
+        done
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ github.ref_name }}
+        body_path: CHANGELOG.md
+        draft: false
+        prerelease: false
+        files: |
+          release-artifacts/*.zip
+          release-artifacts/blake3_checksum.txt
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
